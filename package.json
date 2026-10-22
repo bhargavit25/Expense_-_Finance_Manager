@@ -1,0 +1,17 @@
+{
+  "name": "expense-and-finance-manager",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Expense & Finance Manager Monorepo Workspace",
+  "scripts": {
+    "dev:backend": "npm --prefix \"server\" run dev",
+    "dev:frontend": "npm --prefix \"client\" run dev",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "prisma:deploy": "npm --prefix \"server\" run prisma:deploy",
+    "prisma:seed": "npm --prefix \"server\" run prisma:seed",
+    "prisma:generate": "npm --prefix \"server\" run prisma:generate",
+    "test:backend": "npm --prefix \"server\" test",
+    "build:frontend": "npm --prefix \"client\" run build"
+  }
+}

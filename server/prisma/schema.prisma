@@ -1,0 +1,167 @@
+// Prisma schema for Expense & Finance Manager
+// Supports PostgreSQL with accurate Decimal types for financial figures
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+model User {
+  id                    String                 @id @default(uuid())
+  name                  String
+  email                 String                 @unique
+  password              String
+  currency              String                 @default("INR")
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  categories            Category[]
+  transactions          Transaction[]
+  budgets               Budget[]
+  notifications         Notification[]
+  recurringTransactions RecurringTransaction[]
+
+  @@map("users")
+}
+
+model Category {
+  id                    String                 @id @default(uuid())
+  name                  String
+  type                  CategoryType
+  color                 String?
+  icon                  String?
+  isDefault             Boolean                @default(false)
+  userId                String?
+  user                  User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions          Transaction[]
+  budgets               Budget[]
+  recurringTransactions RecurringTransaction[]
+  notifications         Notification[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@unique([name, userId, type])
+  @@index([userId])
+  @@index([type])
+  @@map("categories")
+}
+
+model Transaction {
+  id                 String                         @id @default(uuid())
+  userId             String
+  user               User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title              String
+  amount             Decimal                        @db.Decimal(12, 2)
+  type               TransactionType
+  categoryId         String
+  category           Category                       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  date               DateTime
+  paymentMethod      String                         @default("Cash")
+  notes              String?
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+  recurringExecution RecurringTransactionExecution?
+
+  @@index([userId, date])
+  @@index([userId, type])
+  @@index([userId, categoryId])
+  @@map("transactions")
+}
+
+model Budget {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  month      Int
+  year       Int
+  amount     Decimal  @db.Decimal(12, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, categoryId, month, year])
+  @@index([userId, month, year])
+  @@map("budgets")
+}
+
+model Notification {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  message    String
+  type       String    @default("BUDGET_WARNING") // BUDGET_WARNING, BUDGET_EXCEEDED, RECURRING_PROCESSED, SYSTEM
+  isRead     Boolean   @default(false)
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  month      Int?
+  year       Int?
+  threshold  Int? // 75, 90, 100, 101 (over 100)
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, isRead])
+  @@index([userId, categoryId, month, year, threshold])
+  @@map("notifications")
+}
+
+model RecurringTransaction {
+  id                String                          @id @default(uuid())
+  userId            String
+  user              User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title             String
+  amount            Decimal                         @db.Decimal(12, 2)
+  type              TransactionType
+  categoryId        String
+  category          Category                        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  paymentMethod     String                          @default("Bank Transfer")
+  startDate         DateTime
+  endDate           DateTime?
+  frequency         RecurrenceFrequency
+  nextExecutionDate DateTime
+  lastExecutedAt    DateTime?
+  isActive          Boolean                         @default(true)
+  createdAt         DateTime                        @default(now())
+  updatedAt         DateTime                        @updatedAt
+  executions        RecurringTransactionExecution[]
+
+  @@index([isActive, nextExecutionDate])
+  @@index([userId])
+  @@map("recurring_transactions")
+}
+
+model RecurringTransactionExecution {
+  id                     String               @id @default(uuid())
+  recurringTransactionId String
+  recurringTransaction   RecurringTransaction @relation(fields: [recurringTransactionId], references: [id], onDelete: Cascade)
+  transactionId          String?              @unique
+  transaction            Transaction?         @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  scheduledDate          DateTime
+  executedAt             DateTime             @default(now())
+  status                 String               @default("SUCCESS") // SUCCESS, FAILED
+  idempotencyKey         String               @unique
+  errorMessage           String?
+
+  @@index([recurringTransactionId])
+  @@map("recurring_transaction_executions")
+}
